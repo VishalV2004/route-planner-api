@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Route & Fuel Stops Map</title>
+
+    <!-- Leaflet CSS -->
+    <link
+        rel="stylesheet"
+        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    />
+
+<style>
+html, body {
+    height: 100%;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+}
+
+#controls {
+    padding: 10px;
+    background: #f4f4f4;
+    border-bottom: 1px solid #ccc;
+    width: 100%;
+}
+
+#map {
+    width: 100% !important;
+    height: calc(100vh - 60px) !important;
+    min-height: 500px !important;
+    display: block;
+}
+</style>
+</head>
+
+<body>
+
+    <div id="controls">
+        <label>Start:</label>
+        <input type="text" id="start" value="Dallas,TX">
+
+        <label>End:</label>
+        <input type="text" id="end" value="Houston,TX">
+
+        <button onclick="loadRoute()">Find Route</button>
+
+        <span id="info" style="margin-left: 15px; font-weight: bold;"></span>
+    </div>
+
+    <div id="map"></div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+let map;
+let routeLayer = null;
+let stopsLayer = null;
+
+// -----------------------------------------------------------------------------------
+// FORCE LEAFLET TO FIX ITS SIZE (Leaflet bug fix)
+// -----------------------------------------------------------------------------------
+function forceMapRedraw() {
+    setTimeout(() => map.invalidateSize(true), 100);
+    setTimeout(() => map.invalidateSize(true), 300);
+    setTimeout(() => map.invalidateSize(true), 800);
+    setTimeout(() => map.invalidateSize(true), 1500);
+}
+
+// -----------------------------------------------------------------------------------
+// INIT MAP
+// -----------------------------------------------------------------------------------
+function initMap() {
+    map = L.map('map').setView([31.5, -97.0], 6); // Texas center
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19
+    }).addTo(map);
+
+    forceMapRedraw();
+}
+
+// -----------------------------------------------------------------------------------
+// FETCH ROUTE DATA FROM BACKEND
+// -----------------------------------------------------------------------------------
+async function loadRoute() {
+    const start = document.getElementById('start').value;
+    const end = document.getElementById('end').value;
+    const info = document.getElementById('info');
+
+    if (!start || !end) {
+        alert("Please enter both start and end.");
+        return;
+    }
+
+    info.textContent = "Loading route...";
+
+    const url = `/api/route/?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`;
+
+    try {
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (!res.ok) {
+            alert("Error: " + (data.error || "Failed to fetch route"));
+            info.textContent = "";
+            return;
+        }
+
+        info.textContent =
+            `Distance: ${data.distance_miles} mi | Time: ${data.travel_time_minutes} min | Fuel: ${data.fuel_needed_gallons} gal`;
+
+        drawRouteAndStops(data);
+
+    } catch (err) {
+        console.error(err);
+        alert("Could not load route.");
+        info.textContent = "";
+    }
+}
+
+// -----------------------------------------------------------------------------------
+// DRAW ROUTE + FUEL STOP MARKERS
+// -----------------------------------------------------------------------------------
+function drawRouteAndStops(data) {
+    const points = data.route_polyline; // Array of [lat, lng]
+
+    if (routeLayer) map.removeLayer(routeLayer);
+    if (stopsLayer) map.removeLayer(stopsLayer);
+
+    // Draw route line
+    routeLayer = L.polyline(points, { weight: 4 }).addTo(map);
+    map.fitBounds(routeLayer.getBounds());
+
+    forceMapRedraw(); // ensure map tiles load properly after zoom
+
+    // Fuel stop markers
+    stopsLayer = L.layerGroup().addTo(map);
+
+    data.fuel_stops.forEach(stop => {
+        const marker = L.marker([stop.lat, stop.lng]).addTo(stopsLayer);
+
+        const popupHtml = `
+            <b>${stop.name}</b><br/>
+            ${stop.city}, ${stop.state}<br/>
+            Price: $${stop.price.toFixed(2)} / gal<br/>
+            Distance from route: ${stop.distance_from_route_miles} miles
+        `;
+
+        marker.bindPopup(popupHtml);
+    });
+}
+
+window.onload = initMap;
+</script>
+
+</body>
+</html>
