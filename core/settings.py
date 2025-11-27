@@ -26,10 +26,11 @@ SECRET_KEY = 'django-insecure-6@)r1dfw!5phill-q4!w-%1tqq5(8=av6_7tfq)*tc^0q8(lty
 DEBUG = True
 
 ALLOWED_HOSTS = [
-    "localhost",
-    "127.0.0.1",
-    "route-planner-api-dnuc.onrender.com",
+    'route-planner-api-dnuc.onrender.com',
+    'localhost',
+    '127.0.0.1'
 ]
+
 
 
 
